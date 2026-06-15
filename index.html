@@ -538,7 +538,7 @@ function renderStock(){
   <div style="display:flex;justify-content:space-between;align-items:flex-start">
   <div style="flex:1">
   <div style="font-weight:800;font-size:14px">${p.name}</div>
-  <div style="font-size:11px;color:var(--muted);margin-top:4px">Achat: ${cfa(p.prixAchat)} · Vente: ${cfa(p.prixVente)}</div>
+  <div style="font-size:11px;color:var(--muted);margin-top:4px">Achat: ${cfa(p.prixAchat)}</div>
   </div>
   <div style="text-align:right">
   <div style="font-family:monospace;font-weight:900;font-size:18px;color:${p.stock<=2?"var(--red)":"var(--green)"}">${p.stock}</div>
@@ -557,10 +557,7 @@ function openProductModal(id){
   const p=id?getP(id):{name:"",prixAchat:0,prixVente:0,stock:0};
   showModal("modal-product",id?"✎ Modifier produit":"+ Nouveau produit",`
   <div class="field"><label>Nom du parfum</label><input type="text" id="prod-name" value="${p.name||""}" placeholder="ex: Bleu de Chanel 100ml"/></div>
-  <div class="grid2">
   <div class="field"><label>Prix d'achat (F)</label><input type="number" id="prod-achat" value="${p.prixAchat||0}" min="0"/></div>
-  <div class="field"><label>Prix de vente (F)</label><input type="number" id="prod-vente" value="${p.prixVente||0}" min="0"/></div>
-  </div>
   <div class="field"><label>Stock actuel</label><input type="number" id="prod-stock" value="${p.stock||0}" min="0"/></div>
   `,
   `<button class="btn btn-ghost" style="flex:1" onclick="closeAndRemove('modal-product')">Annuler</button>
@@ -571,11 +568,11 @@ window.openProductModal=openProductModal;
 async function saveProduct(id){
   const name=el("prod-name").value.trim();
   const prixAchat=+el("prod-achat").value||0;
-  const prixVente=+el("prod-vente").value||0;
   const stock=+el("prod-stock").value||0;
   if(!name)return alert("⚠️ Indique le nom du produit !");
   const k=id||push(ref(db,"products")).key;
-  await set(ref(db,"products/"+k),{name,prixAchat,prixVente,stock});
+  const existing=id?getP(id):null;
+  await set(ref(db,"products/"+k),{name,prixAchat,prixVente:existing?.prixVente||0,stock});
   closeAndRemove("modal-product");
   render();
 }
