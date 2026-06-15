@@ -787,7 +787,7 @@ function renderRapportEmploye(){
       <div style="font-size:32px">✅</div>
       <div style="font-weight:800;margin-top:6px">Rapport enregistré</div>
       ${rapport.source==="zero"?`<div style="font-size:12px;color:var(--muted);margin-top:6px">🏖 Journée sans vente</div>`:
-      `<div style="margin-top:12px;text-align:left">${(rapport.ventes||[]).map(v=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${v.productName}</span><span style="font-family:monospace">× ${v.qty}</span></div>`).join("")}</div>`}
+      `<div style="margin-top:12px;text-align:left">${(rapport.ventes||[]).map(v=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${v.productName}${v.client?` <span style="color:var(--blue)">· ${v.client}</span>`:""}</span><span style="font-family:monospace">× ${v.qty}</span></div>`).join("")}</div>`}
       <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
       <button class="btn btn-blue btn-full" onclick="editRapportDirect('${rapport._key}')">📝 Refaire / corriger</button>
       <button class="btn btn-violet btn-full" onclick="triggerPhoto()">📷 Scanner le cahier</button>
@@ -856,7 +856,7 @@ function renderRapport(){
       </div>`:""}
       </div>
       ${rapport.source==="zero"?`<div style="font-size:12px;color:var(--muted)">Aucune vente comptoir ce jour.</div>`:
-      ventesDirectes.map(v=>`<div class="commande-item"><span>${v.productName} × ${v.qty}</span><span style="font-family:monospace">${cfa((v.price||0)*(v.qty||0))} <span style="color:${v.profit>=0?"var(--green)":"var(--red)"}">(${v.profit>=0?"+":""}${cfa(v.profit)})</span></span></div>`).join("")}
+      ventesDirectes.map(v=>`<div class="commande-item"><span>${v.productName} × ${v.qty}${v.client?` <span style="color:var(--blue)">· ${v.client}</span>`:""}</span><span style="font-family:monospace">${cfa((v.price||0)*(v.qty||0))} <span style="color:${v.profit>=0?"var(--green)":"var(--red)"}">(${v.profit>=0?"+":""}${cfa(v.profit)})</span></span></div>`).join("")}
       ${ventesDirectes.length?`<div class="commande-total"><span>Total comptoir</span><span>${cfa(caDirect)}</span></div>`:""}
       </div>`;
     }else{
@@ -921,7 +921,7 @@ window.changeRapportDate=changeRapportDate;
 
 // ---- Saisie manuelle ventes comptoir ----
 function startSaisieManuelle(){
-  currentRapportVentes=[{productId:"",qty:1,price:0}];
+  currentRapportVentes=[{productId:"",qty:1,price:0,client:""}];
   editingRapportId=null;
   rapportMode="manual";
   render();
@@ -946,6 +946,7 @@ function renderVentesDirectesLignes(){
     ${getProducts().map(p=>`<option value="${p.id}" ${v.productId===p.id?"selected":""}>${p.name} (stock: ${p.stock})</option>`).join("")}
     </select></div>
     ${v.productId&&!p?`<div style="font-size:10px;color:var(--amber);margin-bottom:6px">⚠️ Produit détecté: "${v.productName||""}" — sélectionne le produit correspondant ci-dessus</div>`:""}
+    <div class="field" style="margin-bottom:8px"><label>Client (optionnel)</label><input type="text" value="${v.client||""}" placeholder="Nom du client" oninput="currentRapportVentes[${i}].client=this.value"/></div>
     <div class="grid2">
     <div class="field"><label>Quantité</label><input type="number" min="1" value="${v.qty}" onchange="updateVenteDirecte(${i},'qty',+this.value)"/></div>
     <div class="field"><label>Prix unitaire (F)</label><input type="number" min="0" value="${v.price}" onchange="updateVenteDirecte(${i},'price',+this.value)"/></div>
@@ -957,7 +958,7 @@ function renderVentesDirectesLignes(){
   <span style="font-weight:900;font-size:18px;font-family:monospace;color:var(--green)">${cfa(total)}</span>
   </div>`;
 }
-function addVenteDirecte(){currentRapportVentes.push({productId:"",qty:1,price:0});renderVentesDirectesLignes();}
+function addVenteDirecte(){currentRapportVentes.push({productId:"",qty:1,price:0,client:""});renderVentesDirectesLignes();}
 window.addVenteDirecte=addVenteDirecte;
 function removeVenteDirecte(i){currentRapportVentes.splice(i,1);renderVentesDirectesLignes();}
 window.removeVenteDirecte=removeVenteDirecte;
@@ -1014,7 +1015,7 @@ async function validerRapportDirect(){
   for(const v of currentRapportVentes){
     const p=getP(v.productId);
     const profit=((+v.price||0)-(+p.prixAchat||0))*(+v.qty||0);
-    ventes.push({productId:v.productId,productName:p.name,qty:+v.qty,price:+v.price,profit});
+    ventes.push({productId:v.productId,productName:p.name,qty:+v.qty,price:+v.price,profit,client:(v.client||"").trim()});
     total+=(+v.price||0)*(+v.qty||0);
     await set(ref(db,"products/"+p.id),{...p,stock:p.stock-(+v.qty||0)});
   }
@@ -1031,8 +1032,8 @@ window.validerRapportDirect=validerRapportDirect;
 
 function editRapportDirect(key){
   const r=getRapports().find(r=>r._key===key);if(!r)return;
-  if(r.source==="zero"){currentRapportVentes=[{productId:"",qty:1,price:0}];}
-  else currentRapportVentes=(r.ventes||[]).map(v=>({productId:v.productId,productName:v.productName,qty:v.qty,price:v.price}));
+  if(r.source==="zero"){currentRapportVentes=[{productId:"",qty:1,price:0,client:""}];}
+  else currentRapportVentes=(r.ventes||[]).map(v=>({productId:v.productId,productName:v.productName,qty:v.qty,price:v.price,client:v.client||""}));
   editingRapportId=key;
   rapportMode="manual";
   render();
@@ -1083,7 +1084,7 @@ async function handlePhoto(event){
   reader.onload=async()=>{
     const base64=reader.result.split(",")[1];
     const productList=getProducts().map(p=>`${p.id}: ${p.name} (prix vente: ${p.prixVente})`).join("\n");
-    const prompt=`Analyse cette photo d'un cahier de ventes de parfums écrit à la main. Liste des produits existants (id: nom) :\n${productList}\n\nPour chaque ligne de vente identifiée sur la photo, retourne un objet avec : productId (l'id exact de la liste ci-dessus si le produit correspond, sinon null), productName (le nom tel qu'écrit sur le cahier), qty (quantité, nombre entier), price (prix unitaire en F CFA, nombre).\n\nRéponds UNIQUEMENT avec un JSON valide, sans texte autour, sans \`\`\`, au format exact :\n{"ventes":[{"productId":"...","productName":"...","qty":1,"price":0}],"notes":""}`;
+    const prompt=`Analyse cette photo d'un cahier de ventes de parfums écrit à la main. Liste des produits existants (id: nom) :\n${productList}\n\nPour chaque ligne de vente identifiée sur la photo, retourne un objet avec : productId (l'id exact de la liste ci-dessus si le produit correspond, sinon null), productName (le nom tel qu'écrit sur le cahier), qty (quantité, nombre entier), price (prix unitaire en F CFA, nombre), client (nom du client si mentionné sur le cahier, sinon chaîne vide).\n\nRéponds UNIQUEMENT avec un JSON valide, sans texte autour, sans \`\`\`, au format exact :\n{"ventes":[{"productId":"...","productName":"...","qty":1,"price":0,"client":""}],"notes":""}`;
     el("content").insertAdjacentHTML("afterbegin",`<div class="card" id="scan-loading" style="text-align:center;border-color:#8b5cf655"><div style="font-size:28px">⏳</div><div style="font-weight:800;margin-top:6px">Analyse de la photo en cours...</div></div>`);
     try{
       const resp=await fetch(GEMINI_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt},{inline_data:{mime_type:file.type,data:base64}}]}]})});
@@ -1095,7 +1096,7 @@ async function handlePhoto(event){
       if(parsed.ventes&&parsed.ventes.length>0){
         currentRapportVentes=parsed.ventes.map(v=>{
           const p=v.productId?getP(String(v.productId)):null;
-          return{productId:p?p.id:"",productName:v.productName||(p?p.name:""),qty:Math.max(1,+v.qty||1),price:p?+p.prixVente||+v.price||0:+v.price||0};
+          return{productId:p?p.id:"",productName:v.productName||(p?p.name:""),qty:Math.max(1,+v.qty||1),price:p?+p.prixVente||+v.price||0:+v.price||0,client:(v.client||"").trim()};
         });
         editingRapportId=null;
         rapportMode="manual";
