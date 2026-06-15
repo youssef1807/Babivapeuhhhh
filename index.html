@@ -192,7 +192,6 @@ let role=null;
 let currentTab="commandes";
 let fbProducts={}, fbCommandes={}, fbCaisseMoves={}, fbCredits={}, fbCaisseConfig={}, fbAchats={}, fbDepots={}, fbDepenses={}, fbRetraits={}, fbRapports={};
 let loaded={products:false,commandes:false,caisseMoves:false,credits:false,caisseConfig:false,achats:false,depots:false,depenses:false,retraits:false,rapports:false};
-let commandeFilter="attente";
 let rapportDate=todayStr();
 let currentCommande=null; // objet en cours d'édition dans le modal
 
@@ -327,7 +326,6 @@ const STATUT_COLOR={attente:"amber",paye:"green",credit:"blue",retour:"red"};
 
 function renderCommandes(){
   const all=getCommandes().sort((a,b)=>(b.date||"").localeCompare(a.date||"")||(b.createdAt||0)-(a.createdAt||0));
-  const filtered=commandeFilter==="toutes"?all:all.filter(c=>c.statut===commandeFilter);
   const nbAttente=all.filter(c=>c.statut==="attente").length;
   const totalAttente=all.filter(c=>c.statut==="attente").reduce((a,c)=>a+(+c.total||0),0);
 
@@ -341,15 +339,9 @@ function renderCommandes(){
   <div style="font-size:11px;color:var(--muted);margin-top:2px">Total à confirmer : ${cfa(totalAttente)}</div></div>
   </div></div>`:""}
 
-  <div class="pills">
-  ${["attente","paye","credit","retour","toutes"].map(f=>`<button class="pill ${commandeFilter===f?"active":""}" style="${commandeFilter===f?`background:var(--${f==="toutes"?"violet":STATUT_COLOR[f]||"blue"});border-color:var(--${f==="toutes"?"violet":STATUT_COLOR[f]||"blue"})`:""}" onclick="setCommandeFilter('${f}')">${f==="toutes"?"Toutes":STATUT_LABEL[f]}</button>`).join("")}
-  </div>
-
-  ${filtered.length===0?`<div class="empty"><div class="empty-emoji">📭</div>Aucune commande${commandeFilter!=="toutes"?" "+STATUT_LABEL[commandeFilter].toLowerCase():""}.</div>`:filtered.map(commandeCardHtml).join("")}
+  ${all.length===0?`<div class="empty"><div class="empty-emoji">📭</div>Aucune commande.</div>`:all.map(commandeCardHtml).join("")}
   `;
 }
-function setCommandeFilter(f){commandeFilter=f;renderCommandes();}
-window.setCommandeFilter=setCommandeFilter;
 
 function commandeCardHtml(c){
   const items=c.items||[];
@@ -445,7 +437,6 @@ async function saveCommande(){
   const k=push(ref(db,"commandes")).key;
   await set(ref(db,"commandes/"+k),{_key:k,date:c.date,client:c.client.trim(),tel:c.tel.trim(),adresse:c.adresse.trim(),note:c.note.trim(),items,total,statut:"attente",createdAt:Date.now()});
   closeAndRemove("modal-commande");
-  commandeFilter="attente";
   render();
 }
 window.saveCommande=saveCommande;
