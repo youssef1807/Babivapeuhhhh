@@ -175,8 +175,8 @@ import { getDatabase, ref, set, push, remove, onValue } from "https://www.gstati
 let db=null, fbApp=null;
 
 // ===== MOTS DE PASSE =====
-const PW_ADMIN="babi1010";
-const PW_VENDEUR="vente1010";
+const PW_ADMIN="yh1010";
+const PW_VENDEUR="victoire";
 
 /* =========================================================
    GEMINI API — Pour le scan photo du cahier
@@ -245,6 +245,7 @@ function login(){
   el("role-badge").textContent=role==="admin"?"👑 Admin":"🧑‍💼 Vendeur";
   el("role-badge").className="role-badge "+role;
   el("btn-settings").style.display=role==="admin"?"flex":"none";
+  currentTab=role==="admin"?"commandes":"rapport";
   buildNav();
   render();
 }
@@ -269,12 +270,16 @@ const TABS=[
 ];
 const SUBTABS=["dashboard","achats","depots","credits","depenses"];
 function buildNav(){
+  if(role==="vendeur"){
+    el("bottomnav").innerHTML=`<button class="nav-item active"><span class="nav-icon">📋</span>Rapport</button>`;
+    return;
+  }
   el("bottomnav").innerHTML=TABS.map(t=>{
     const active=currentTab===t.id||(t.id==="plus"&&SUBTABS.includes(currentTab));
     return `<button class="nav-item ${active?"active":""}" onclick="switchTab('${t.id}')"><span class="nav-icon">${t.icon}</span>${t.label}</button>`;
   }).join("");
 }
-function switchTab(id){currentTab=id;buildNav();render();}
+function switchTab(id){if(role==="vendeur")return;currentTab=id;buildNav();render();}
 window.switchTab=switchTab;
 function backBtn(){return `<button class="icon-btn" onclick="switchTab('plus')" style="margin-right:8px">←</button>`;}
 
@@ -283,6 +288,7 @@ function render(){
     el("content").innerHTML=`<div class="empty"><div class="empty-emoji">⏳</div>Chargement des données...</div>`;
     return;
   }
+  if(role==="vendeur"){currentTab="rapport";renderRapportEmploye();return;}
   if(currentTab==="commandes")renderCommandes();
   else if(currentTab==="stock")renderStock();
   else if(currentTab==="caisse")renderCaisse();
@@ -759,6 +765,54 @@ window.saveRemboursement=saveRemboursement;
 // ===================================================================
 // RAPPORT
 // ===================================================================
+// ---- Vue Rapport simplifiée pour l'employé (vendeur) ----
+function renderRapportEmploye(){
+  const rapport=getRapports().find(r=>r.date===rapportDate);
+  let entryHtml="";
+  if(rapportMode==="manual"){
+    entryHtml=`<div class="card" style="border-color:#3b82f655">
+    <div class="sec-head"><span class="sec-title" style="font-size:15px">📝 Ventes comptoir — ${dateLabel(rapportDate)}</span></div>
+    <div id="ventes-directes-container"></div>
+    <button class="btn btn-ghost btn-full" style="margin-top:4px" onclick="addVenteDirecte()">+ Ajouter une ligne</button>
+    <div style="display:flex;gap:8px;margin-top:14px">
+    <button class="btn btn-ghost" style="flex:1" onclick="annulerSaisieRapport()">Annuler</button>
+    <button class="btn btn-blue" style="flex:2" onclick="validerRapportDirect()">✅ Valider le rapport</button>
+    </div>
+    </div>`;
+  }
+  let statusHtml="";
+  if(rapportMode==="view"){
+    if(rapport){
+      statusHtml=`<div class="card" style="border-color:#22c55e55;text-align:center">
+      <div style="font-size:32px">✅</div>
+      <div style="font-weight:800;margin-top:6px">Rapport enregistré</div>
+      ${rapport.source==="zero"?`<div style="font-size:12px;color:var(--muted);margin-top:6px">🏖 Journée sans vente</div>`:
+      `<div style="margin-top:12px;text-align:left">${(rapport.ventes||[]).map(v=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${v.productName}</span><span style="font-family:monospace">× ${v.qty}</span></div>`).join("")}</div>`}
+      <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-blue btn-full" onclick="editRapportDirect('${rapport._key}')">📝 Refaire / corriger</button>
+      <button class="btn btn-violet btn-full" onclick="triggerPhoto()">📷 Scanner le cahier</button>
+      </div>
+      </div>`;
+    }else{
+      statusHtml=`<div class="card">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Aucun rapport pour cette date.</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-blue btn-full" onclick="startSaisieManuelle()">📝 Saisie manuelle</button>
+      <button class="btn btn-violet btn-full" onclick="triggerPhoto()">📷 Scanner le cahier</button>
+      <button class="btn btn-ghost btn-full" onclick="journeeSansVente()">🏖 Journée sans vente</button>
+      </div>
+      </div>`;
+    }
+  }
+  el("content").innerHTML=`
+  <div class="sec-head"><span class="sec-title">📋 Rapport</span></div>
+  <div class="field"><input type="date" id="rapport-date" value="${rapportDate}" onchange="changeRapportDate(this.value)"/></div>
+  ${entryHtml}
+  ${statusHtml}
+  `;
+  if(rapportMode==="manual")renderVentesDirectesLignes();
+}
+
 function renderRapport(){
   const commandes=getCommandes().filter(c=>c.date===rapportDate);
   const paye=commandes.filter(c=>c.statut==="paye");
