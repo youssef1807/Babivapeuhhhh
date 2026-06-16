@@ -184,7 +184,7 @@ const PW_VENDEUR="victoire";
    2. Créer une clé API (gratuit)
    3. La coller ci-dessous à la place de "VOTRE_CLE_GEMINI"
    ========================================================= */
-const GEMINI_API_KEY="VOTRE_CLE_GEMINI";
+const GEMINI_API_KEY="AQ.Ab8RN6KnDB60adnciV2zV7SnYmI_1FFFRX5ktHy_mspqvBRX1g";
 const GEMINI_URL=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 // ===== ÉTAT GLOBAL =====
@@ -321,23 +321,15 @@ function renderPlus(){
 // ===================================================================
 // COMMANDES
 // ===================================================================
-const STATUT_LABEL={attente:"⏳ En attente",paye:"✅ Payé",credit:"💳 Crédit",retour:"↩ Retour"};
-const STATUT_COLOR={attente:"amber",paye:"green",credit:"blue",retour:"red"};
+const STATUT_LABEL={paye:"✅ Payé",credit:"💳 Crédit"};
+const STATUT_COLOR={paye:"green",credit:"blue"};
 
 function renderCommandes(){
   const all=getCommandes().sort((a,b)=>(b.date||"").localeCompare(a.date||"")||(b.createdAt||0)-(a.createdAt||0));
-  const nbAttente=all.filter(c=>c.statut==="attente").length;
-  const totalAttente=all.filter(c=>c.statut==="attente").reduce((a,c)=>a+(+c.total||0),0);
 
   el("content").innerHTML=`
   <div class="sec-head"><span class="sec-title">📦 Commandes</span>
   <button class="btn btn-blue btn-sm" onclick="openNouvelleCommande()">+ Nouvelle</button></div>
-
-  ${nbAttente>0?`<div class="card" style="border-color:#f59e0b55;background:#f59e0b10">
-  <div style="display:flex;justify-content:space-between;align-items:center">
-  <div><div style="font-weight:800;font-size:13px">⏳ ${nbAttente} commande(s) en attente</div>
-  <div style="font-size:11px;color:var(--muted);margin-top:2px">Total à confirmer : ${cfa(totalAttente)}</div></div>
-  </div></div>`:""}
 
   ${all.length===0?`<div class="empty"><div class="empty-emoji">📭</div>Aucune commande.</div>`:all.map(commandeCardHtml).join("")}
   `;
@@ -355,22 +347,15 @@ function commandeCardHtml(c){
   ${items.map(it=>`<div class="commande-item"><span>${it.productName} × ${it.qty}</span><span style="font-family:monospace">${cfa((it.prix||0)*(it.qty||0))}</span></div>`).join("")}
   <div class="commande-total"><span>Total</span><span>${cfa(c.total)}</span></div>
   ${c.note?`<div style="font-size:11px;color:var(--muted);margin-top:6px;font-style:italic">📝 ${c.note}</div>`:""}
-  <div class="commande-actions">
-  ${c.statut==="attente"?`
-    <button class="btn btn-green btn-sm" style="flex:1" onclick="marquerCommande('${c._key}','paye')">✅ Payé</button>
-    <button class="btn btn-blue btn-sm" style="flex:1" onclick="marquerCommande('${c._key}','credit')">💳 Crédit</button>
-    <button class="btn btn-red btn-sm" style="flex:1" onclick="marquerCommande('${c._key}','retour')">↩ Retour</button>
-  `:`
-    ${role==="admin"?`<button class="btn btn-ghost btn-sm" style="flex:1" onclick="annulerCommande('${c._key}')">↩ Annuler statut</button>`:""}
-  `}
-  ${role==="admin"?`<button class="btn btn-red btn-sm" style="padding:6px 12px" onclick="supprimerCommande('${c._key}')">✕</button>`:""}
-  </div>
+  ${role==="admin"?`<div class="commande-actions">
+    <button class="btn btn-red btn-sm" style="padding:6px 12px" onclick="supprimerCommande('${c._key}')">✕ Supprimer</button>
+  </div>`:""}
   </div>`;
 }
 
 // ---- Nouvelle commande modal ----
 function openNouvelleCommande(){
-  currentCommande={date:todayStr(),client:"",tel:"",adresse:"",note:"",items:[{productId:"",qty:1,prix:0}]};
+  currentCommande={date:todayStr(),client:"",tel:"",adresse:"",note:"",statut:"paye",items:[{productId:"",qty:1,prix:0}]};
   showModal("modal-commande","📦 Nouvelle commande",`
   <div class="field"><label>Date</label><input type="date" id="cmd-date" value="${currentCommande.date}" oninput="currentCommande.date=this.value"/></div>
   <div class="field"><label>Client</label><input type="text" id="cmd-client" placeholder="Nom du client" oninput="currentCommande.client=this.value"/></div>
@@ -379,14 +364,30 @@ function openNouvelleCommande(){
   <div class="field"><label>Adresse</label><input type="text" id="cmd-adresse" placeholder="Quartier / adresse" oninput="currentCommande.adresse=this.value"/></div>
   </div>
   <div class="field"><label>Note (optionnel)</label><input type="text" id="cmd-note" placeholder="ex: appeler avant livraison" oninput="currentCommande.note=this.value"/></div>
+  <div class="field"><label>Type de vente</label>
+  <div style="display:flex;gap:8px">
+  <button class="btn btn-green btn-full" id="btn-type-paye" onclick="setCommandeStatut('paye')">✅ Payé</button>
+  <button class="btn btn-ghost btn-full" id="btn-type-credit" onclick="setCommandeStatut('credit')">💳 Crédit</button>
+  </div>
+  </div>
   <div id="cmd-lignes-container"></div>
   <button class="btn btn-ghost btn-full" style="margin-top:4px" onclick="addCommandeLigne()">+ Ajouter un produit</button>
   `,
   `<button class="btn btn-ghost" style="flex:1" onclick="closeAndRemove('modal-commande')">Annuler</button>
    <button class="btn btn-blue" style="flex:2" onclick="saveCommande()">💾 Enregistrer</button>`);
   renderCommandeLignes();
+  updateCommandeTypeButtons();
 }
 window.openNouvelleCommande=openNouvelleCommande;
+
+function setCommandeStatut(statut){currentCommande.statut=statut;updateCommandeTypeButtons();}
+window.setCommandeStatut=setCommandeStatut;
+function updateCommandeTypeButtons(){
+  const bp=el("btn-type-paye"),bc=el("btn-type-credit");
+  if(!bp||!bc)return;
+  bp.className="btn btn-full "+(currentCommande.statut==="paye"?"btn-green":"btn-ghost");
+  bc.className="btn btn-full "+(currentCommande.statut==="credit"?"btn-blue":"btn-ghost");
+}
 
 function renderCommandeLignes(){
   const c=document.getElementById("cmd-lignes-container");if(!c)return;
@@ -404,7 +405,7 @@ function renderCommandeLignes(){
     <div class="field"><label>Quantité</label><input type="number" min="1" value="${it.qty}" onchange="updateCommandeLigne(${i},'qty',+this.value)"/></div>
     <div class="field"><label>Prix unitaire (F)</label><input type="number" min="0" value="${it.prix}" onchange="updateCommandeLigne(${i},'prix',+this.value)"/></div>
     </div>
-    ${p?`<div style="font-size:11px;color:var(--muted)">Sous-total: ${cfa((it.qty||0)*(it.prix||0))}</div>`:""}
+    ${p?`<div style="font-size:11px;color:var(--muted)">Sous-total: ${cfa((it.qty||0)*(it.prix||0))} · Stock dispo: ${p.stock}</div>`:""}
     </div>`;
   }).join("")+`<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0 4px;border-top:2px solid var(--border);margin-top:6px">
   <span style="font-weight:900;font-size:15px">Total commande</span>
@@ -432,72 +433,48 @@ async function saveCommande(){
     if(!it.productId)return alert("⚠️ Choisis un produit pour chaque ligne !");
     if(!it.qty||it.qty<1)return alert("⚠️ Quantité invalide !");
   }
-  const items=c.items.map(it=>{const p=getP(it.productId);return{productId:it.productId,productName:p?p.name:it.productName,qty:+it.qty,prix:+it.prix};});
-  const total=items.reduce((a,it)=>a+it.qty*it.prix,0);
-  const k=push(ref(db,"commandes")).key;
-  await set(ref(db,"commandes/"+k),{_key:k,date:c.date,client:c.client.trim(),tel:c.tel.trim(),adresse:c.adresse.trim(),note:c.note.trim(),items,total,statut:"attente",createdAt:Date.now()});
-  closeAndRemove("modal-commande");
-  render();
-}
-window.saveCommande=saveCommande;
-
-// ---- Marquer payé / crédit / retour ----
-async function marquerCommande(key,statut){
-  const c=getCommandes().find(c=>c._key===key);if(!c)return;
-  if(statut==="retour"){
-    if(!confirm("Marquer cette commande comme RETOUR (annulée) ?"))return;
-    await set(ref(db,"commandes/"+key),{...c,statut:"retour"});
-    render();return;
-  }
-  // Vérifier le stock
+  // Vérifier le stock disponible (en tenant compte des lignes multiples du même produit)
+  const stockMap={};
   for(const it of c.items){
     const p=getP(it.productId);
-    if(!p||it.qty>p.stock)return alert(`⚠️ Stock insuffisant pour "${it.productName}" (stock: ${p?p.stock:0}, besoin: ${it.qty})`);
+    if(stockMap[it.productId]===undefined)stockMap[it.productId]=p?p.stock:0;
+    stockMap[it.productId]-=(+it.qty||0);
+    if(stockMap[it.productId]<0)return alert(`⚠️ Stock insuffisant pour "${p?p.name:it.productName}"`);
   }
-  if(!confirm(statut==="paye"?`Confirmer le PAIEMENT de ${cfa(c.total)} ?\nLe stock sera déduit et l'argent ajouté en caisse.`:`Confirmer cette commande à CRÉDIT ?\nLe stock sera déduit et un crédit client sera créé.`))return;
-  // Déduire le stock + calculer le bénéfice
+  const items=c.items.map(it=>{const p=getP(it.productId);return{productId:it.productId,productName:p?p.name:it.productName,qty:+it.qty,prix:+it.prix};});
+  const total=items.reduce((a,it)=>a+it.qty*it.prix,0);
   let profit=0;
-  for(const it of c.items){
+  for(const it of items){
     const p=getP(it.productId);
     profit+=((+it.prix||0)-(+p.prixAchat||0))*it.qty;
     await set(ref(db,"products/"+p.id),{...p,stock:p.stock-it.qty});
   }
-  if(statut==="paye"){
+  const k=push(ref(db,"commandes")).key;
+  await set(ref(db,"commandes/"+k),{_key:k,date:c.date,client:c.client.trim(),tel:c.tel.trim(),adresse:c.adresse.trim(),note:c.note.trim(),items,total,statut:c.statut,profit,createdAt:Date.now()});
+  if(c.statut==="paye"){
     const mk=push(ref(db,"caisseMoves")).key;
-    await set(ref(db,"caisseMoves/"+mk),{_key:mk,date:c.date,type:"in",label:"Commande: "+c.client,montant:c.total,commandeId:key});
+    await set(ref(db,"caisseMoves/"+mk),{_key:mk,date:c.date,type:"in",label:"Commande: "+c.client.trim(),montant:total,commandeId:k});
   }else{
     // Crédit : fusion par nom de client
     const nom=c.client.trim().toLowerCase();
     const doublon=getCredits().find(cr=>cr.status!=="soldé"&&cr.client&&cr.client.trim().toLowerCase()===nom);
     if(doublon){
-      await set(ref(db,"credits/"+doublon._key),{...doublon,montantInitial:(+doublon.montantInitial||0)+c.total,montantRestant:(+doublon.montantRestant||0)+c.total,historique:[...(doublon.historique||[]),{date:c.date,montant:c.total,note:"Commande livrée",commandeId:key}]});
+      await set(ref(db,"credits/"+doublon._key),{...doublon,montantInitial:(+doublon.montantInitial||0)+total,montantRestant:(+doublon.montantRestant||0)+total,historique:[...(doublon.historique||[]),{date:c.date,montant:total,note:"Commande livrée",commandeId:k}]});
     }else{
       const ck=push(ref(db,"credits")).key;
-      await set(ref(db,"credits/"+ck),{_key:ck,client:c.client,montantInitial:c.total,montantRestant:c.total,date:c.date,status:"en cours",historique:[{date:c.date,montant:c.total,note:"Commande livrée",commandeId:key}]});
+      await set(ref(db,"credits/"+ck),{_key:ck,client:c.client.trim(),montantInitial:total,montantRestant:total,date:c.date,status:"en cours",historique:[{date:c.date,montant:total,note:"Commande livrée",commandeId:k}]});
     }
   }
-  await set(ref(db,"commandes/"+key),{...c,statut,profit});
+  closeAndRemove("modal-commande");
   render();
 }
-window.marquerCommande=marquerCommande;
-
-// ---- Annuler statut (admin) ----
-async function annulerCommande(key){
-  const c=getCommandes().find(c=>c._key===key);if(!c)return;
-  if(!confirm("Annuler le statut \""+(STATUT_LABEL[c.statut]||c.statut)+"\" et repasser en attente ?\n⚠️ Le stock et la caisse/crédit seront ajustés."))return;
-  await reverserCommande(c);
-  await set(ref(db,"commandes/"+key),{...c,statut:"attente",profit:0});
-  render();
-}
-window.annulerCommande=annulerCommande;
+window.saveCommande=saveCommande;
 
 async function reverserCommande(c){
-  if(c.statut==="paye"||c.statut==="credit"){
-    // Restituer le stock
-    for(const it of c.items){
-      const p=getP(it.productId);
-      if(p)await set(ref(db,"products/"+p.id),{...p,stock:p.stock+it.qty});
-    }
+  // Restituer le stock
+  for(const it of (c.items||[])){
+    const p=getP(it.productId);
+    if(p)await set(ref(db,"products/"+p.id),{...p,stock:p.stock+it.qty});
   }
   if(c.statut==="paye"){
     const m=getCaisseMoves().find(m=>m.commandeId===c._key);
@@ -518,8 +495,8 @@ async function reverserCommande(c){
 // ---- Supprimer commande (admin) ----
 async function supprimerCommande(key){
   const c=getCommandes().find(c=>c._key===key);if(!c)return;
-  if(!confirm("Supprimer définitivement cette commande ?"+((c.statut==="paye"||c.statut==="credit")?"\n⚠️ Le stock et la caisse/crédit seront ajustés.":"")))return;
-  if(c.statut==="paye"||c.statut==="credit")await reverserCommande(c);
+  if(!confirm("Supprimer définitivement cette commande ?\n⚠️ Le stock et la caisse/crédit seront ajustés."))return;
+  await reverserCommande(c);
   await remove(ref(db,"commandes/"+key));
   render();
 }
@@ -805,12 +782,9 @@ function renderRapport(){
   const commandes=getCommandes().filter(c=>c.date===rapportDate);
   const paye=commandes.filter(c=>c.statut==="paye");
   const credit=commandes.filter(c=>c.statut==="credit");
-  const retour=commandes.filter(c=>c.statut==="retour");
-  const attente=commandes.filter(c=>c.statut==="attente");
   const caEncaisseCmd=paye.reduce((a,c)=>a+(+c.total||0),0);
   const caCreditCmd=credit.reduce((a,c)=>a+(+c.total||0),0);
   const benefCmd=[...paye,...credit].reduce((a,c)=>a+(+c.profit||0),0);
-  const montantRetour=retour.reduce((a,c)=>a+(+c.total||0),0);
 
   const rapport=getRapports().find(r=>r.date===rapportDate);
   const ventesDirectes=rapport?.ventes||[];
@@ -879,9 +853,8 @@ function renderRapport(){
   </div>
   <div class="grid2">
   <div class="stat-box" style="border-color:#3b82f644"><div class="stat-label">CA crédit</div><div class="stat-val" style="color:var(--blue)">${cfa(caCreditCmd)}</div><div class="stat-sub">${credit.length} commande(s)</div></div>
-  <div class="stat-box" style="border-color:#ef444444"><div class="stat-label">↩ Retours</div><div class="stat-val" style="color:var(--red)">${retour.length} (${cfa(montantRetour)})</div></div>
+  <div class="stat-box" style="border-color:#22c55e44"><div class="stat-label">📦 Commandes</div><div class="stat-val" style="color:var(--green)">${commandes.length}</div></div>
   </div>
-  ${attente.length?`<div style="margin-top:10px;font-size:12px;color:var(--amber);font-weight:700">⏳ ${attente.length} commande(s) encore en attente ce jour</div>`:""}
   </div>
 
   <div class="sec-head" style="margin-top:14px"><span class="sec-title" style="font-size:15px">Commandes du jour</span></div>
@@ -1649,7 +1622,7 @@ function renderDashboard(){
   const achatsEnAttente=getAchats().filter(a=>a.statut==="attente").reduce((a,x)=>a+(+x.total||0),0);
   const capitalMobilise=stockValue+caisseSolde+creditsDus+depotsValue+achatsEnAttente;
 
-  const nbAttenteCommandes=getCommandes().filter(c=>c.statut==="attente").length;
+  const nbCommandesMois=getCommandes().filter(c=>monthKey(c.date)===mk).length;
   const nbAttenteAchats=getAchats().filter(a=>a.statut==="attente").length;
 
   el("content").innerHTML=`
@@ -1679,7 +1652,7 @@ function renderDashboard(){
   </div>
 
   <div class="grid2">
-  <div class="stat-box" style="border-color:#f59e0b44"><div class="stat-label">📦 Commandes attente</div><div class="stat-val" style="color:var(--amber)">${nbAttenteCommandes}</div></div>
+  <div class="stat-box" style="border-color:#22c55e44"><div class="stat-label">📦 Commandes du mois</div><div class="stat-val" style="color:var(--green)">${nbCommandesMois}</div></div>
   <div class="stat-box" style="border-color:#f59e0b44"><div class="stat-label">🚚 Achats attente</div><div class="stat-val" style="color:var(--amber)">${nbAttenteAchats}</div></div>
   </div>
   `;
