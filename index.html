@@ -61,7 +61,7 @@ input:focus,select:focus,textarea:focus{outline:1px solid var(--blue);}
 .sync-dot{width:9px;height:9px;border-radius:50%;background:var(--green);}
 .sync-dot.off{background:var(--amber);}
 
-#content{padding:0 16px 24px;}
+#content{padding:0 16px calc(140px + env(safe-area-inset-bottom));}
 
 .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px;}
 .sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
@@ -85,6 +85,7 @@ input:focus,select:focus,textarea:focus{outline:1px solid var(--blue);}
 .sheet-footer{display:flex;gap:10px;margin-top:14px;}
 
 /* ===== BOTTOM NAV ===== */
+.action-bar{position:fixed;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom));background:#0c111cf2;backdrop-filter:blur(8px);border-top:1px solid var(--border);padding:10px 16px;display:flex;gap:8px;z-index:480;}
 .bottomnav{position:fixed;bottom:0;left:0;right:0;background:#0c111c;border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:8px 4px calc(6px + env(safe-area-inset-bottom));z-index:500;}
 .nav-item{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;color:var(--muted);font-weight:800;flex:1;background:none;border:none;cursor:pointer;padding:4px 0;}
 .nav-item.active{color:var(--blue);}
@@ -759,10 +760,6 @@ function renderRapportEmploye(){
     <div class="sec-head"><span class="sec-title" style="font-size:15px">📝 Ventes comptoir — ${dateLabel(rapportDate)}</span></div>
     <div id="ventes-directes-container"></div>
     <button class="btn btn-ghost btn-full" style="margin-top:4px" onclick="addVenteDirecte()">+ Ajouter une ligne</button>
-    <div style="display:flex;gap:8px;margin-top:14px">
-    <button class="btn btn-ghost" style="flex:1" onclick="annulerSaisieRapport()">Annuler</button>
-    <button class="btn btn-blue" style="flex:2" onclick="validerRapportDirect()">✅ Valider le rapport</button>
-    </div>
     </div>`;
   }
   let statusHtml="";
@@ -794,6 +791,10 @@ function renderRapportEmploye(){
   <div class="field"><input type="date" id="rapport-date" value="${rapportDate}" onchange="changeRapportDate(this.value)"/></div>
   ${entryHtml}
   ${statusHtml}
+  ${rapportMode==="manual"?`<div class="action-bar">
+  <button class="btn btn-ghost" style="flex:1" onclick="annulerSaisieRapport()">Annuler</button>
+  <button class="btn btn-blue" style="flex:2" onclick="validerRapportDirect()">✅ Valider le rapport</button>
+  </div>`:""}
   `;
   if(rapportMode==="manual")renderVentesDirectesLignes();
 }
@@ -819,10 +820,6 @@ function renderRapport(){
     <div class="sec-head"><span class="sec-title" style="font-size:15px">📝 Ventes comptoir — ${dateLabel(rapportDate)}</span></div>
     <div id="ventes-directes-container"></div>
     <button class="btn btn-ghost btn-full" style="margin-top:4px" onclick="addVenteDirecte()">+ Ajouter une ligne</button>
-    <div style="display:flex;gap:8px;margin-top:14px">
-    <button class="btn btn-ghost" style="flex:1" onclick="annulerSaisieRapport()">Annuler</button>
-    <button class="btn btn-blue" style="flex:2" onclick="validerRapportDirect()">✅ Valider le rapport</button>
-    </div>
     </div>`;
   }
 
@@ -905,6 +902,10 @@ function renderRapport(){
     </div>`;
   }).join("")}
   `:""}
+  ${rapportMode==="manual"?`<div class="action-bar">
+  <button class="btn btn-ghost" style="flex:1" onclick="annulerSaisieRapport()">Annuler</button>
+  <button class="btn btn-blue" style="flex:2" onclick="validerRapportDirect()">✅ Valider le rapport</button>
+  </div>`:""}
   `;
   if(rapportMode==="manual")renderVentesDirectesLignes();
 }
