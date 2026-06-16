@@ -226,6 +226,26 @@ function getDepenses(){return Object.entries(fbDepenses||{}).map(([k,d])=>({_key
 function getRetraits(){return Object.entries(fbRetraits||{}).map(([k,r])=>({_key:k,...r}));}
 function getRapports(){return Object.entries(fbRapports||{}).map(([k,r])=>({_key:k,...r}));}
 function monthKey(d){return (d||todayStr()).slice(0,7);}
+function normalizeStr(s){return (s||"").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");}
+function findProductFuzzy(name){
+  const target=normalizeStr(name);
+  if(!target)return null;
+  const products=getProducts();
+  // 1. correspondance exacte normalisée
+  let match=products.find(p=>normalizeStr(p.name)===target);
+  if(match)return match;
+  // 2. l'un contient l'autre (ex: "Cp intense" vs "cp intense 100ml")
+  match=products.find(p=>{const pn=normalizeStr(p.name);return pn&&(target.includes(pn)||pn.includes(target));});
+  if(match)return match;
+  // 3. la plupart des mots du nom produit apparaissent dans le nom détecté
+  match=products.find(p=>{
+    const words=(p.name||"").toLowerCase().split(/\s+/).filter(w=>w.length>2);
+    if(!words.length)return false;
+    const hits=words.filter(w=>target.includes(normalizeStr(w))).length;
+    return hits/words.length>=0.6;
+  });
+  return match||null;
+}
 let rapportMode="view"; // view | manual | scan
 let currentRapportVentes=[];
 let editingRapportId=null;
@@ -1093,7 +1113,7 @@ async function handlePhoto(event){
   reader.onload=async()=>{
     const base64=reader.result.split(",")[1];
     const productList=getProducts().map(p=>`${p.id}: ${p.name} (prix vente: ${p.prixVente})`).join("\n");
-    const prompt=`Analyse cette photo d'un cahier de ventes de parfums écrit à la main. Liste des produits existants (id: nom) :\n${productList}\n\nPour chaque ligne de vente identifiée sur la photo, retourne un objet avec : productId (l'id exact de la liste ci-dessus si le produit correspond, sinon null), productName (le nom tel qu'écrit sur le cahier), qty (quantité, nombre entier), price (prix unitaire en F CFA, nombre), client (nom du client si mentionné sur le cahier, sinon chaîne vide).\n\nRéponds UNIQUEMENT avec un JSON valide, sans texte autour, sans \`\`\`, au format exact :\n{"ventes":[{"productId":"...","productName":"...","qty":1,"price":0,"client":""}],"notes":""}`;
+    const prompt=`Analyse cette photo d'un cahier de ventes de parfums écrit à la main. Liste des produits existants (id: nom) :\n${productList}\n\nPour chaque ligne de vente identifiée sur la photo, retourne un objet avec : productId (l'id exact de la liste ci-dessus du produit qui correspond le mieux au nom écrit sur le cahier — fais une correspondance approximative en ignorant les accents, majuscules/minuscules, abréviations et fautes de frappe ; mets null UNIQUEMENT si vraiment aucun produit de la liste ne ressemble), productName (le nom tel qu'écrit sur le cahier), qty (quantité, nombre entier), price (prix unitaire en F CFA, nombre), client (nom du client si mentionné sur le cahier, sinon chaîne vide).\n\nRéponds UNIQUEMENT avec un JSON valide, sans texte autour, sans \`\`\`, au format exact :\n{"ventes":[{"productId":"...","productName":"...","qty":1,"price":0,"client":""}],"notes":""}`;
     el("content").insertAdjacentHTML("afterbegin",`<div class="card" id="scan-loading" style="text-align:center;border-color:#8b5cf655"><div style="font-size:28px">⏳</div><div style="font-weight:800;margin-top:6px">Analyse de la photo en cours...</div></div>`);
     try{
       const resp=await fetch(GEMINI_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt},{inline_data:{mime_type:file.type,data:base64}}]}]})});
@@ -1104,7 +1124,8 @@ async function handlePhoto(event){
       el("scan-loading")?.remove();
       if(parsed.ventes&&parsed.ventes.length>0){
         currentRapportVentes=parsed.ventes.map(v=>{
-          const p=v.productId?getP(String(v.productId)):null;
+          let p=v.productId?getP(String(v.productId)):null;
+          if(!p&&v.productName)p=findProductFuzzy(v.productName);
           return{productId:p?p.id:"",productName:v.productName||(p?p.name:""),qty:Math.max(1,+v.qty||1),price:p?+p.prixVente||+v.price||0:+v.price||0,client:(v.client||"").trim()};
         });
         editingRapportId=null;
