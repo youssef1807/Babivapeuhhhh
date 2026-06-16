@@ -818,8 +818,19 @@ function renderRapport(){
       </div>`:""}
       </div>
       ${rapport.source==="zero"?`<div style="font-size:12px;color:var(--muted)">Aucune vente comptoir ce jour.</div>`:
-      ventesDirectes.map(v=>`<div class="commande-item"><span>${v.productName} × ${v.qty}${v.client?` <span style="color:var(--blue)">· ${v.client}</span>`:""}</span><span style="font-family:monospace">${cfa((v.price||0)*(v.qty||0))} <span style="color:${v.profit>=0?"var(--green)":"var(--red)"}">(${v.profit>=0?"+":""}${cfa(v.profit)})</span></span></div>`).join("")}
-      ${ventesDirectes.length?`<div class="commande-total"><span>Total comptoir</span><span>${cfa(caDirect)}</span></div>`:""}
+      `<label style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:6px;cursor:pointer">
+      <input type="checkbox" id="solde-all-${rapport._key}" ${ventesDirectes.length>0&&ventesDirectes.every(v=>v.solde)?"checked":""} onchange="toggleSoldeAll('${rapport._key}',this.checked)" style="width:18px;height:18px"/>
+      <span style="font-size:12px;font-weight:700;color:var(--muted)">Tout sélectionner (soldé)</span>
+      </label>
+      ${ventesDirectes.map((v,i)=>`<div class="commande-item" style="align-items:center">
+      <label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer">
+      <input type="checkbox" ${v.solde?"checked":""} onchange="toggleVenteSolde('${rapport._key}',${i},this.checked)" style="width:17px;height:17px;flex-shrink:0"/>
+      <span style="${v.solde?"":"opacity:.7"}">${v.productName} × ${v.qty}${v.client?` <span style="color:var(--blue)">· ${v.client}</span>`:""}</span>
+      </label>
+      <span style="font-family:monospace;${v.solde?"":"opacity:.7"}">${cfa((v.price||0)*(v.qty||0))} <span style="color:${v.profit>=0?"var(--green)":"var(--red)"}">(${v.profit>=0?"+":""}${cfa(v.profit)})</span></span>
+      </div>`).join("")}`}
+      ${ventesDirectes.length?`<div class="commande-total"><span>Total comptoir</span><span>${cfa(caDirect)}</span></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">💰 Soldé (en caisse) : ${cfa(ventesDirectes.filter(v=>v.solde).reduce((a,v)=>a+(v.price||0)*(v.qty||0),0))}</div>`:""}
       </div>`;
     }else{
       historiqueHtml=`<div class="card">
@@ -938,8 +949,8 @@ async function reverserRapport(rapport){
   for(const v of (rapport.ventes||[])){
     if(v.productId){const p=getP(v.productId);if(p)await set(ref(db,"products/"+p.id),{...p,stock:p.stock+(+v.qty||0)});}
   }
-  const mv=getCaisseMoves().find(m=>m.rapportId===rapport._key);
-  if(mv)await remove(ref(db,"caisseMoves/"+mv._key));
+  const moves=getCaisseMoves().filter(m=>m.rapportId===rapport._key);
+  for(const m of moves)await remove(ref(db,"caisseMoves/"+m._key));
 }
 
 async function validerRapportDirect(){
@@ -976,20 +987,57 @@ async function validerRapportDirect(){
   for(const v of currentRapportVentes){
     const p=getP(v.productId);
     const profit=((+v.price||0)-(+p.prixAchat||0))*(+v.qty||0);
-    ventes.push({productId:v.productId,productName:p.name,qty:+v.qty,price:+v.price,profit,client:(v.client||"").trim()});
+    ventes.push({productId:v.productId,productName:p.name,qty:+v.qty,price:+v.price,profit,client:(v.client||"").trim(),solde:false});
     total+=(+v.price||0)*(+v.qty||0);
     await set(ref(db,"products/"+p.id),{...p,stock:p.stock-(+v.qty||0)});
   }
   const k=editingRapportId||push(ref(db,"rapports")).key;
   await set(ref(db,"rapports/"+k),{_key:k,date:rapportDate,ventes,source:editingRapportId&&getRapports().find(r=>r._key===editingRapportId)?.source==="scan"?"scan":"manual",createdAt:Date.now()});
-  if(total>0){
-    const mk=push(ref(db,"caisseMoves")).key;
-    await set(ref(db,"caisseMoves/"+mk),{_key:mk,date:rapportDate,type:"in",label:"Ventes comptoir",montant:total,rapportId:k});
-  }
   rapportMode="view";currentRapportVentes=[];editingRapportId=null;
   render();
 }
 window.validerRapportDirect=validerRapportDirect;
+
+// ---- Cocher/décocher "Soldé" sur une ligne de vente comptoir ----
+async function toggleVenteSolde(rapportKey,index,checked){
+  const r=getRapports().find(r=>r._key===rapportKey);if(!r)return;
+  const ventes=[...(r.ventes||[])];
+  const v=ventes[index];if(!v)return;
+  v.solde=checked;
+  await set(ref(db,"rapports/"+rapportKey),{...r,ventes});
+  const montant=(v.price||0)*(v.qty||0);
+  const moveLabel=`Ventes comptoir${v.client?" · "+v.client:""} (${v.productName})`;
+  if(checked&&montant>0){
+    const mk=push(ref(db,"caisseMoves")).key;
+    await set(ref(db,"caisseMoves/"+mk),{_key:mk,date:r.date,type:"in",label:moveLabel,montant,rapportId:rapportKey,venteIndex:index});
+  }else{
+    const m=getCaisseMoves().find(m=>m.rapportId===rapportKey&&m.venteIndex===index);
+    if(m)await remove(ref(db,"caisseMoves/"+m._key));
+  }
+  render();
+}
+window.toggleVenteSolde=toggleVenteSolde;
+
+async function toggleSoldeAll(rapportKey,checked){
+  const r=getRapports().find(r=>r._key===rapportKey);if(!r)return;
+  const ventes=(r.ventes||[]).map(v=>({...v,solde:checked}));
+  await set(ref(db,"rapports/"+rapportKey),{...r,ventes});
+  // Nettoyer tous les anciens mouvements liés à ce rapport
+  const moves=getCaisseMoves().filter(m=>m.rapportId===rapportKey);
+  for(const m of moves)await remove(ref(db,"caisseMoves/"+m._key));
+  if(checked){
+    for(let i=0;i<ventes.length;i++){
+      const v=ventes[i];
+      const montant=(v.price||0)*(v.qty||0);
+      if(montant>0){
+        const mk=push(ref(db,"caisseMoves")).key;
+        await set(ref(db,"caisseMoves/"+mk),{_key:mk,date:r.date,type:"in",label:`Ventes comptoir${v.client?" · "+v.client:""} (${v.productName})`,montant,rapportId:rapportKey,venteIndex:i});
+      }
+    }
+  }
+  render();
+}
+window.toggleSoldeAll=toggleSoldeAll;
 
 function editRapportDirect(key){
   const r=getRapports().find(r=>r._key===key);if(!r)return;
