@@ -265,7 +265,7 @@ function login(){
   el("role-badge").textContent=role==="admin"?"👑 Admin":"🧑‍💼 Vendeur";
   el("role-badge").className="role-badge "+role;
   el("btn-settings").style.display=role==="admin"?"flex":"none";
-  currentTab=role==="admin"?"commandes":"rapport";
+  currentTab=role==="admin"?"stock":"rapport";
   buildNav();
   render();
 }
@@ -282,13 +282,12 @@ window.logout=logout;
 // NAVIGATION
 // ===================================================================
 const TABS=[
-  {id:"commandes",label:"Commandes",icon:"📦"},
   {id:"stock",label:"Stock",icon:"🧴"},
   {id:"caisse",label:"Caisse",icon:"🏦"},
   {id:"rapport",label:"Rapport",icon:"📋"},
   {id:"plus",label:"Plus",icon:"⋯"},
 ];
-const SUBTABS=["dashboard","achats","depots","credits","depenses"];
+const SUBTABS=["dashboard","commandes","achats","depots","credits","depenses"];
 function buildNav(){
   if(role==="vendeur"){
     el("bottomnav").innerHTML=`<button class="nav-item active"><span class="nav-icon">📋</span>Rapport</button>`;
@@ -324,6 +323,7 @@ function render(){
 function renderPlus(){
   const items=[
     {id:"dashboard",icon:"📊",label:"Dashboard",sub:"Bénéfice net réel, capital mobilisé"},
+    {id:"commandes",icon:"📦",label:"Commandes",sub:"Commandes clients (livraison/payé/crédit)"},
     {id:"achats",icon:"🚚",label:"Achats fournisseur",sub:"Commandes de réapprovisionnement"},
     {id:"depots",icon:"🏪",label:"Dépôts-vente",sub:"Stock placé chez des partenaires"},
     {id:"credits",icon:"🤝",label:"Crédits clients",sub:"Suivi des montants dus"},
@@ -349,7 +349,7 @@ function renderCommandes(){
   const all=getCommandes().sort((a,b)=>(b.date||"").localeCompare(a.date||"")||(b.createdAt||0)-(a.createdAt||0));
 
   el("content").innerHTML=`
-  <div class="sec-head"><span class="sec-title">📦 Commandes</span>
+  <div class="sec-head"><span class="sec-title">${backBtn()}📦 Commandes</span>
   <button class="btn btn-blue btn-sm" onclick="openNouvelleCommande()">+ Nouvelle</button></div>
 
   ${all.length===0?`<div class="empty"><div class="empty-emoji">📭</div>Aucune commande.</div>`:all.map(commandeCardHtml).join("")}
@@ -885,20 +885,22 @@ function renderRapport(){
   </div>
   </div>
 
-  <div class="sec-head" style="margin-top:14px"><span class="sec-title" style="font-size:15px">Commandes du jour</span></div>
-  ${commandes.length===0?`<div class="empty"><div class="empty-emoji">📭</div>Aucune commande ce jour.</div>`:commandes.map(commandeCardHtml).join("")}
-
   <div class="sec-head" style="margin-top:18px"><span class="sec-title" style="font-size:15px">📜 Historique des rapports</span></div>
   ${histList.length===0?`<div class="empty"><div class="empty-emoji">📭</div>Aucun rapport enregistré.</div>`:
   histList.map(r=>{
     const v=r.ventes||[];
     const ca=v.reduce((a,x)=>a+(+x.price||0)*(+x.qty||0),0);
     const bn=v.reduce((a,x)=>a+(+x.profit||0),0);
+    const encaisse=v.filter(x=>x.solde).reduce((a,x)=>a+(+x.price||0)*(+x.qty||0),0);
     return `<div class="card" style="cursor:pointer;${r.date===rapportDate?"border-color:#3b82f655":""}" onclick="changeRapportDate('${r.date}')">
     <div style="display:flex;justify-content:space-between;align-items:center">
     <div><div style="font-weight:800;font-size:13px">${dateLabel(r.date)}</div><div style="font-size:11px;color:var(--muted)">${r.source==="zero"?"🏖 Sans vente":r.source==="scan"?"📷 Scan":"📝 Manuel"}${v.length?` · ${v.length} ligne(s)`:""}</div></div>
     ${v.length?`<div style="text-align:right"><div style="font-family:monospace;font-weight:800;color:var(--green)">${cfa(ca)}</div><div style="font-size:10px;color:var(--violet)">+${cfa(bn)}</div></div>`:""}
     </div>
+    ${v.length?`<div style="display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+    <span style="font-size:11px;color:var(--muted)">💰 Encaissé (soldé)</span>
+    <span style="font-family:monospace;font-size:12px;font-weight:700;color:${encaisse>=ca?"var(--green)":"var(--amber)"}">${cfa(encaisse)} / ${cfa(ca)}</span>
+    </div>`:""}
     </div>`;
   }).join("")}
   `:""}
