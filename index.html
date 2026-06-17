@@ -265,7 +265,7 @@ function login(){
   el("role-badge").textContent=role==="admin"?"👑 Admin":"🧑‍💼 Vendeur";
   el("role-badge").className="role-badge "+role;
   el("btn-settings").style.display=role==="admin"?"flex":"none";
-  currentTab=role==="admin"?"stock":"rapport";
+  currentTab=role==="admin"?"dashboard":"rapport";
   buildNav();
   render();
 }
@@ -282,12 +282,13 @@ window.logout=logout;
 // NAVIGATION
 // ===================================================================
 const TABS=[
+  {id:"dashboard",label:"Dashboard",icon:"📊"},
   {id:"stock",label:"Stock",icon:"🧴"},
   {id:"caisse",label:"Caisse",icon:"🏦"},
   {id:"rapport",label:"Rapport",icon:"📋"},
   {id:"plus",label:"Plus",icon:"⋯"},
 ];
-const SUBTABS=["dashboard","commandes","achats","depots","credits","depenses"];
+const SUBTABS=["commandes","achats","depots","credits","depenses"];
 function buildNav(){
   if(role==="vendeur"){
     el("bottomnav").innerHTML=`<button class="nav-item active"><span class="nav-icon">📋</span>Rapport</button>`;
@@ -322,7 +323,6 @@ function render(){
 
 function renderPlus(){
   const items=[
-    {id:"dashboard",icon:"📊",label:"Dashboard",sub:"Bénéfice net réel, capital mobilisé"},
     {id:"commandes",icon:"📦",label:"Commandes",sub:"Commandes clients (livraison/payé/crédit)"},
     {id:"achats",icon:"🚚",label:"Achats fournisseur",sub:"Commandes de réapprovisionnement"},
     {id:"depots",icon:"🏪",label:"Dépôts-vente",sub:"Stock placé chez des partenaires"},
@@ -1694,11 +1694,11 @@ function renderDashboard(){
   const achatsEnAttente=getAchats().filter(a=>a.statut==="attente").reduce((a,x)=>a+(+x.total||0),0);
   const capitalMobilise=stockValue+caisseSolde+creditsDus+depotsValue+achatsEnAttente;
 
-  const nbCommandesMois=getCommandes().filter(c=>monthKey(c.date)===mk).length;
+  const nbVentesComptoirMois=getRapports().filter(r=>monthKey(r.date)===mk).reduce((a,r)=>a+(r.ventes||[]).length,0);
   const nbAttenteAchats=getAchats().filter(a=>a.statut==="attente").length;
 
   el("content").innerHTML=`
-  <div class="sec-head"><span class="sec-title">${backBtn()}📊 Dashboard</span></div>
+  <div class="sec-head"><span class="sec-title">📊 Dashboard</span></div>
   <div class="card">
   <div style="font-weight:900;font-size:16px;margin-bottom:10px">${MOIS[+mk.slice(5,7)-1]} ${mk.slice(0,4)} <span style="color:var(--green);font-size:11px;font-weight:700">En cours</span></div>
   <div class="grid2" style="margin-bottom:10px">
@@ -1724,7 +1724,7 @@ function renderDashboard(){
   </div>
 
   <div class="grid2">
-  <div class="stat-box" style="border-color:#22c55e44"><div class="stat-label">📦 Commandes du mois</div><div class="stat-val" style="color:var(--green)">${nbCommandesMois}</div></div>
+  <div class="stat-box" style="border-color:#22c55e44"><div class="stat-label">📦 Ventes comptoir (mois)</div><div class="stat-val" style="color:var(--green)">${nbVentesComptoirMois}</div></div>
   <div class="stat-box" style="border-color:#f59e0b44"><div class="stat-label">🚚 Achats attente</div><div class="stat-val" style="color:var(--amber)">${nbAttenteAchats}</div></div>
   </div>
   `;
